@@ -196,3 +196,52 @@ def test_queue_contains_only_active_orders(shop: CoffeeShop) -> None:
     shop.cancel_order(cancelled.number)
 
     assert [order.number for order in shop.queue()] == [active.number]
+
+
+# --- Новые параметризованные тесты (дописаны при исправлении дефектов) ------
+
+
+@pytest.mark.parametrize(
+    ("position_names", "expected_total"),
+    [
+        pytest.param(["Эспрессо"], 150.0, id="одна_позиция"),
+        pytest.param(["Латте", "Латте"], 440.0, id="одна_и_та_же_позиция_дважды"),
+        pytest.param(["Латте", "Капучино", "Эспрессо"], 580.0, id="три_разные_позиции"),
+        pytest.param(["Апельсиновый сок", "Эспрессо", "Эспрессо"], 480.0, id="повторы_в_заказе"),
+    ],
+)
+def test_order_total_is_parametric(
+    shop: CoffeeShop, position_names: list[str], expected_total: float
+) -> None:
+    """FR-01: стоимость заказа — сумма всех позиций, включая повторы."""
+    order = shop.create_order(position_names)
+
+    assert shop.order_total(order.number) == pytest.approx(expected_total)
+
+
+@pytest.mark.parametrize(
+    ("position_names", "expected_message"),
+    [
+        pytest.param(["Эспрессо"], "~2 мин", id="быстрая_позиция"),
+        pytest.param(["Апельсиновый сок", "Латте"], "~4 мин", id="самая_долгая_позиция"),
+        pytest.param(["Латте", "Капучино", "Эспрессо"], "~4 мин", id="полный_заказ"),
+    ],
+)
+def test_readiness_message_is_parametric(
+    shop: CoffeeShop, position_names: list[str], expected_message: str
+) -> None:
+    """FR-02: время готовности заказа — максимум по позициям (готовят параллельно)."""
+    order = shop.create_order(position_names)
+    shop.start_preparing(order.number)
+
+    assert shop.readiness_message(order.number) == expected_message
+
+
+@pytest.mark.parametrize("extra_item", ["Латте", "Эспрессо", "Капучино", "Апельсиновый сок"])
+def test_order_limit_boundary_is_parametric(shop: CoffeeShop, extra_item: str) -> None:
+    """FR-06 (граничное значение): любая четвёртая позиция отклоняется."""
+    order = shop.create_order(["Латте", "Эспрессо", "Капучино"])
+
+    with pytest.raises(OrderLimitError):
+        shop.add_item(order.number, extra_item)
+    assert len(order.items) == MAX_ITEMS_PER_ORDER

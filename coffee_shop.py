@@ -142,7 +142,7 @@ class CoffeeShop:
         self._orders[order.number] = order
         for name in position_names:
             self.add_item(order.number, name)
-        return order
+        return orde
 
     def add_item(self, order_number: int, name: str) -> Order:
         """Добавляет позицию в существующий заказ (FR-01, FR-06)."""

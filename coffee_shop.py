@@ -104,8 +104,7 @@ class CoffeeShop:
 
     def available_positions(self) -> list[Position]:
         """Позиции, доступные к предзаказу: каталог без стоп-листа (FR-04)."""
-        # БАГ ДЛЯ СТУДЕНТОВ: стоп-лист не учитывается, доступны все позиции
-        return list(self._menu.values())
+        return [p for p in self._menu.values() if p.name not in self._stop_list]
 
     def find_replacements(self, name: str, limit: int = DEFAULT_REPLACEMENTS) -> list[str]:
         """Подбирает замены для недоступной позиции: сначала позиции той же категории."""
@@ -152,9 +151,8 @@ class CoffeeShop:
             raise OrderStateError(f"Нельзя изменить заказ в статусе «{order.status.value}»")
         self._validate_position(name)
 
-        # БАГ ДЛЯ СТУДЕНТОВ: граница лимита проверяется неверно —
-        # четвёртая позиция проходит проверку (FR-06)
-        if len(order.items) > MAX_ITEMS_PER_ORDER:
+        # Граничное значение: три позиции уже в заказе, значит четвёртую не берём
+        if len(order.items) >= MAX_ITEMS_PER_ORDER:
             raise OrderLimitError(
                 f"В одном заказе не может быть больше {MAX_ITEMS_PER_ORDER} позиций"
             )
@@ -165,8 +163,12 @@ class CoffeeShop:
     def cancel_order(self, order_number: int) -> Order:
         """Отменяет заказ до начала приготовления (FR-03)."""
         order = self.get_order(order_number)
-        # БАГ ДЛЯ СТУДЕНТОВ: не проверяется статус —
-        # можно отменить заказ, который уже готовится или готов
+        # FR-03: отмена возможна только из статуса «Принят»
+        if order.status is not OrderStatus.ACCEPTED:
+            raise CancelNotAllowedError(
+                "Отменить заказ можно только до начала приготовления, "
+                f"сейчас статус «{order.status.value}»"
+            )
         order.status = OrderStatus.CANCELLED
         return order
 
@@ -201,9 +203,8 @@ class CoffeeShop:
     def order_total(self, order_number: int) -> float:
         """Стоимость заказа в рублях (FR-01)."""
         order = self.get_order(order_number)
-        # БАГ ДЛЯ СТУДЕНТОВ: одинаковые позиции схлопываются —
-        # set вместо list, две «Латте» считаются как одна
-        return round(sum({item.price for item in order.items}), 2)
+        # Каждая позиция считается отдельно, даже если она повторяется
+        return round(sum(item.price for item in order.items), 2)
 
     def queue(self) -> list[Order]:
         """Очередь бариста: принятые и готовящиеся заказы (FR-01, FR-02)."""
